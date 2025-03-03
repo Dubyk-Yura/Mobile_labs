@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // щоб вийти з додатку
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -19,14 +19,15 @@ class MyApp extends StatelessWidget {
 }
 
 class ColorInputScreen extends StatefulWidget {
+  //на відміну від Stateless віджета в цьому ми можем змінювати стан,
+  //функцією setState()
   const ColorInputScreen({super.key});
 
-  //на відміну від Stateless віджета в цьому ми можем змінювати стан, функцією setState()
   @override
-  _ColorInputScreenState createState() => _ColorInputScreenState();
+  ColorInputScreenState createState() => ColorInputScreenState();
 }
 
-class _ColorInputScreenState extends State<ColorInputScreen> {
+class ColorInputScreenState extends State<ColorInputScreen> {
   Color backgroundColor = Colors.white; // колір фону на початку
   final TextEditingController _controller = TextEditingController();
 
@@ -38,14 +39,17 @@ class _ColorInputScreenState extends State<ColorInputScreen> {
           if (input.length == 6) {
             backgroundColor = Color(
               int.parse('0xFF$input'),
-            ); // FF стоїть на початку щоб коли введу 6 символів то означає що колір буде не прозорим (ARGB)
+            ); // FF стоїть на початку щоб коли введу 6 символів то означає,
+            // що колір буде не прозорим (ARGB)
           } else {
             backgroundColor = Color(int.parse('0x$input'));
           } // тут можна задати власну прозорість в перших двох символах
         });
       } catch (e) {
         // Якщо якась помилка парсингу, залишаємо старий колір і видаєм помилку
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Неправильний формат HEX-коду!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Неправильний формат HEX-коду!')),
+        );
       }
     } else if (input == '') {
       //якщо користувач просто виходить з поля вводу
@@ -56,7 +60,12 @@ class _ColorInputScreenState extends State<ColorInputScreen> {
           return AlertDialog(
             title: const Text('Помилка'),
             content: const Text('Введений HEX-код неправильний!'),
-            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
           );
         },
       );
@@ -86,7 +95,10 @@ class _ColorInputScreenState extends State<ColorInputScreen> {
               onSubmitted: (value) => _updateBackgroundColor(),
             ),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _updateBackgroundColor, child: const Text('Змінити фон')),
+            ElevatedButton(
+              onPressed: _updateBackgroundColor,
+              child: const Text('Змінити фон'),
+            ),
             const ElevatedButton(
               onPressed: SystemNavigator.pop,
               child: Text('Вийти з додатку'),
