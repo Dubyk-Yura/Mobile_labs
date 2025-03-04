@@ -14,6 +14,7 @@ class MyApp extends StatelessWidget {
       title: 'Hex Color Input',
       theme: ThemeData(primarySwatch: Colors.blue),
       home: const ColorInputScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
