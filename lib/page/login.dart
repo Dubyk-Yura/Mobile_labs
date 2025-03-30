@@ -33,7 +33,7 @@ class LoginPageState extends State<LoginPage> {
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
-          key: _formKey, // Додаємо Form з ключем для валідації
+          key: _formKey,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -54,9 +54,9 @@ class LoginPageState extends State<LoginPage> {
               CustomButton(
                 text: 'Login',
                 onPressed: () {
-                  // if (_formKey.currentState!.validate()) {
+                  if (_formKey.currentState!.validate()) {
                     Navigator.pushReplacementNamed(context, '/main');
-                  // }
+                  }
                 },
               ),
               const SizedBox(height: 10),

@@ -43,13 +43,13 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) {
                 return Container(
                   decoration: BoxDecoration(
-                    color: const Color(0x88939bae), // Колір фону
-                    borderRadius: BorderRadius.circular(15), // Закруглені кути
+                    color: const Color(0x88939bae),
+                    borderRadius: BorderRadius.circular(15),
                   ),
                   margin: const EdgeInsets.symmetric(
                     vertical: 5,
                     horizontal: 10,
-                  ), // Відступи
+                  ),
                   child: ListTile(
                     title: Text(
                       items[index],
