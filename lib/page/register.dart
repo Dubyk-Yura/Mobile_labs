@@ -41,7 +41,6 @@ class RegisterPageState extends State<RegisterPage> {
             children: [
               CustomTextField(
                 label: 'Email',
-                backgroundColor: Colors.grey,
                 controller: emailController,
                 validationMessage: 'Please enter email',
                 email: true,
@@ -50,14 +49,12 @@ class RegisterPageState extends State<RegisterPage> {
               CustomTextField(
                 label: 'Password',
                 obscureText: true,
-                backgroundColor: Colors.grey,
                 controller: passwordController,
               ),
               const SizedBox(height: 10),
               CustomTextField(
                 label: 'Confirm Password',
                 obscureText: true,
-                backgroundColor: Colors.grey,
                 controller: confirmPasswordController,
               ),
               const SizedBox(height: 20),
@@ -76,6 +73,7 @@ class RegisterPageState extends State<RegisterPage> {
               CustomTextButton(
                 onPressed: () => Navigator.pushNamed(context, '/login'),
                 text: 'Already have an account? Login',
+                fontSize: 16,
               ),
             ],
           ),
