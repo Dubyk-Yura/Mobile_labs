@@ -9,11 +9,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<String> items = [];
+  List<Item> items = [];
 
   void _addItem() {
     setState(() {
-      items.add('Sensor ${items.length + 1}');
+      items.add(
+        Item(
+          title: 'Sensor ${items.length + 1}',
+          subItems: List.generate(3, (index) => 'Subitem ${index + 1}'),
+        ),
+      );
     });
   }
 
@@ -28,15 +33,6 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(0),
-            child: CustomButton(
-              onPressed: _addItem,
-              text: 'Add sensor',
-              horizontalPadding: 60,
-              verticalPadding: 4,
-            ),
-          ),
           Expanded(
             child: ListView.builder(
               itemCount: items.length,
@@ -50,22 +46,77 @@ class _HomePageState extends State<HomePage> {
                     vertical: 5,
                     horizontal: 10,
                   ),
-                  child: ListTile(
+                  child: ExpansionTile(
                     title: Text(
-                      items[index],
+                      items[index].title,
                       style: const TextStyle(color: Colors.white),
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete, color: Colors.red),
                       onPressed: () => _removeItem(index),
                     ),
+                    children: items[index].subItems.map((subItem) {
+                      return ListTile(
+                        title: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              subItem,
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: MediaQuery.of(context).size.width * 0.85,
+                              height: 200,
+                              decoration: BoxDecoration(
+                                color: Colors.grey,
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: const Center(
+                                child: Text(
+                                  'Sensor Chart',
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 20,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Center(
+                              child: Container(
+                                margin: const EdgeInsets.only(top: 10),
+                                width: MediaQuery.of(context).size.width * 0.85,
+                                height: 1,
+                                color: const Color(0x68d9e0fa),
+                              ),
+                            )
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
                 );
               },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: CustomButton(
+              onPressed: _addItem,
+              text: 'Add Sensor',
+              horizontalPadding: 60,
+              verticalPadding: 4,
             ),
           ),
         ],
       ),
     );
   }
+}
+
+class Item {
+  final String title;
+  final List<String> subItems;
+
+  Item({required this.title, required this.subItems});
 }
