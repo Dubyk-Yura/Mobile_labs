@@ -89,7 +89,7 @@ class _HomePageState extends State<HomePage> {
                                 height: 1,
                                 color: const Color(0x68d9e0fa),
                               ),
-                            )
+                            ),
                           ],
                         ),
                       );
