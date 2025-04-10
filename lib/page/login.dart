@@ -64,7 +64,10 @@ class LoginPageState extends State<LoginPage> {
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
                     await _saveLoginData();
-                    Navigator.pushReplacementNamed(context, '/main');
+
+                    if (context.mounted) {
+                      Navigator.pushReplacementNamed(context, '/main');
+                    }
                   }
                 },
               ),
