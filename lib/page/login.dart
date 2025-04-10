@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_labs/widgets/custom_button.dart';
 import 'package:mobile_labs/widgets/custom_text_button.dart';
 import 'package:mobile_labs/widgets/custom_textfield.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +15,13 @@ class LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+
+  Future<void> _saveLoginData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('email', emailController.text);
+    await prefs.setString('password', passwordController.text);
+    await prefs.setBool('isLoggedIn', true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,8 +61,9 @@ class LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20),
               CustomButton(
                 text: 'Login',
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState!.validate()) {
+                    await _saveLoginData();
                     Navigator.pushReplacementNamed(context, '/main');
                   }
                 },

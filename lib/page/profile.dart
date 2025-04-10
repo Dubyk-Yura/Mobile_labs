@@ -1,8 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_labs/widgets/custom_button.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
+
+  Future<void> _logout(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login',
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +42,7 @@ class ProfilePage extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             CustomButton(
-              onPressed: () => Navigator.pushNamed(context, '/login'),
+              onPressed: () => _logout(context),
               text: 'Quit',
               verticalPadding: 0,
             ),

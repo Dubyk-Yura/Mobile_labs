@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:mobile_labs/page/home.dart';
 import 'package:mobile_labs/page/profile.dart';
 
-
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
 
