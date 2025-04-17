@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_labs/storage/storage.dart';
+import 'package:mobile_labs/storage/storage_impl.dart';
 import 'package:mobile_labs/widgets/custom_button.dart';
 import 'package:mobile_labs/widgets/custom_text_button.dart';
 import 'package:mobile_labs/widgets/custom_textfield.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+final Storage localStorage = StorageImpl();
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,13 +18,6 @@ class LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-
-  Future<void> _saveLoginData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('email', emailController.text);
-    await prefs.setString('password', passwordController.text);
-    await prefs.setBool('isLoggedIn', true);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,14 +59,25 @@ class LoginPageState extends State<LoginPage> {
                 text: 'Login',
                 onPressed: () async {
                   if (_formKey.currentState!.validate()) {
-                    await _saveLoginData();
-
-                    if (context.mounted) {
-                      Navigator.pushReplacementNamed(context, '/main');
+                    try {
+                      await localStorage.loginUser(
+                        emailController.text,
+                        passwordController.text,
+                      );
+                      if (context.mounted) {
+                        Navigator.pushReplacementNamed(context, '/main');
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(e.toString())),
+                        );
+                      }
                     }
                   }
                 },
               ),
+
               const SizedBox(height: 10),
               CustomTextButton(
                 text: 'Register',

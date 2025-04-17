@@ -4,12 +4,14 @@ import 'package:mobile_labs/page/login.dart';
 import 'package:mobile_labs/page/main.dart';
 import 'package:mobile_labs/page/profile.dart';
 import 'package:mobile_labs/page/register.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_labs/storage/storage.dart';
+import 'package:mobile_labs/storage/storage_impl.dart';
+
+final Storage localStorage = StorageImpl();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final bool isLoggedIn = await localStorage.isLoggedIn();
   runApp(MyApp(isLoggedIn: isLoggedIn));
 }
 
