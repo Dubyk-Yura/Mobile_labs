@@ -9,6 +9,11 @@ class CustomTextField extends StatelessWidget {
   final Color borderColor;
   final String validationMessage;
   final bool email;
+  final String? Function()? getMatchValue;
+  final String? mismatchMessage;
+  final bool noDigits;
+  final String? noDigitsMessage;
+
 
   const CustomTextField({
     required this.label,
@@ -20,6 +25,10 @@ class CustomTextField extends StatelessWidget {
     this.backgroundColor = const Color(0xffd9e0fa),
     this.borderColor = const Color(0xffd9e0fa),
     this.validationMessage = 'This field cannot be empty',
+    this.getMatchValue,
+    this.mismatchMessage,
+    this.noDigitsMessage,
+    this.noDigits = false,
   });
 
   @override
@@ -71,6 +80,12 @@ class CustomTextField extends StatelessWidget {
           if (!emailRegex.hasMatch(value)) {
             return 'Please enter a valid email address';
           }
+        }
+        if (noDigits && RegExp(r'\d').hasMatch(value)) {
+          return noDigitsMessage ?? 'This field cannot contain digits';
+        }
+        if (getMatchValue != null && value != getMatchValue!()) {
+          return mismatchMessage ?? 'Values do not match';
         }
         return null;
       },
