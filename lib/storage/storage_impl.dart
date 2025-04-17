@@ -95,7 +95,6 @@ class StorageImpl implements Storage {
     final prefs = await SharedPreferences.getInstance();
     final key = 'sensor_data_$email';
     await prefs.setString(key, data);
-    await prefs.clear();
   }
 
   @override
