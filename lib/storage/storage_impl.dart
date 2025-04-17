@@ -13,8 +13,12 @@ class StorageImpl implements Storage {
     final usersJson = prefs.getString(_usersKey);
     final users = usersJson == null
         ? <String, Map<String, dynamic>>{}
-        : jsonDecode(usersJson) as Map<String, Map<String, dynamic>>;
-
+        : (jsonDecode(usersJson) as Map<String, dynamic>).map(
+            (key, value) => MapEntry(
+              key,
+              Map<String, dynamic>.from(value as Map),
+            ),
+          );
 
     if (users.containsKey(email)) {
       throw Exception('User already exists');
@@ -35,8 +39,12 @@ class StorageImpl implements Storage {
     final usersJson = prefs.getString(_usersKey);
     final users = usersJson == null
         ? <String, Map<String, dynamic>>{}
-        : jsonDecode(usersJson) as Map<String, Map<String, dynamic>>;
-
+        : (jsonDecode(usersJson) as Map<String, dynamic>).map(
+            (key, value) => MapEntry(
+              key,
+              Map<String, dynamic>.from(value as Map),
+            ),
+          );
 
     if (!users.containsKey(email)) {
       throw Exception('User does not exist');
@@ -87,6 +95,7 @@ class StorageImpl implements Storage {
     final prefs = await SharedPreferences.getInstance();
     final key = 'sensor_data_$email';
     await prefs.setString(key, data);
+    await prefs.clear();
   }
 
   @override
