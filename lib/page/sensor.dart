@@ -98,15 +98,15 @@ class _SensorWidgetState extends State<SensorWidget> {
             SizedBox(
               height: 200,
               child: SfCartesianChart(
-                primaryXAxis: const CategoryAxis(),
-                series: <CartesianSeries<Map<String, dynamic>, String>>[
-                  LineSeries<Map<String, dynamic>, String>(
+                primaryXAxis: const DateTimeAxis(),
+                series: <CartesianSeries<Map<String, dynamic>, DateTime>>[
+                  LineSeries<Map<String, dynamic>, DateTime>(
                     dataSource: widget.values,
-                    xValueMapper: (data, _) => data['timestamp'].toString(),
+                    xValueMapper: (data, _) => DateTime.parse(data['timestamp'].toString()),
                     yValueMapper: (data, _) => data['value'] as double,
                   ),
                 ],
-              ),
+              )
             )
           else
             Column(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -19,11 +20,19 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<SensorData> sensors = [];
   String? userEmail;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _startAutoUpdate();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -47,34 +56,51 @@ class _HomePageState extends State<HomePage> {
     await localStorage.write(userEmail!, encoded);
   }
 
+  void _startAutoUpdate() {
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) {
+      setState(() {
+        for (int i = 0; i < sensors.length; i++) {
+          final sensor = sensors[i];
+          final timestamp = DateTime.now().add(Duration(seconds: i * 5));
+          final timeString = timestamp.toIso8601String(); // замість ручного формування
+
+          final newValues = List<Map<String, dynamic>>.from(sensor.values)
+            ..add({
+              'timestamp':timeString,
+              'value': Random().nextDouble() * 50 - 10,
+            });
+          if (newValues.length > 50) {
+            newValues.removeAt(0);
+          }
+          sensors[i] = SensorData(title: sensor.title, values: newValues);
+        }
+      });
+      _saveSensors();
+    });
+  }
+
   void _addSensor() {
     setState(() {
       final newSensor = SensorData(
         title: 'Sensor ${sensors.length + 1}',
-        values: List.generate(10, (index) {
+        values: List.generate(1, (index) {
           final random = Random();
-
           final value = random.nextDouble() * 50 - 10;
-
           final timestamp = DateTime.now().add(Duration(seconds: index * 5));
-          final timeString =
-              '${timestamp.hour}:${timestamp.minute}:${timestamp.second}';
-
+          final timeString = timestamp.toIso8601String();
           return {'timestamp': timeString, 'value': value};
         }),
       );
-
       sensors.add(newSensor);
     });
-
     _saveSensors();
   }
 
   void _updateSensor(
-    int index,
-    String newTitle,
-    List<Map<String, dynamic>> newValues,
-  ) {
+      int index,
+      String newTitle,
+      List<Map<String, dynamic>> newValues,
+      ) {
     setState(() {
       sensors[index] = SensorData(title: newTitle, values: newValues);
     });
@@ -131,16 +157,16 @@ class SensorData {
   SensorData({required this.title, required this.values});
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'values': values,
-      };
+    'title': title,
+    'values': values,
+  };
 
   factory SensorData.fromJson(Map<String, dynamic> json) {
     return SensorData(
       title: json['title'].toString(),
       values: List<Map<String, dynamic>>.from(
         (json['values'] as List<dynamic>).map(
-          (value) => Map<String, dynamic>.from(value as Map<String, dynamic>),
+              (value) => Map<String, dynamic>.from(value as Map<String, dynamic>),
         ),
       ),
     );
