@@ -62,11 +62,12 @@ class _HomePageState extends State<HomePage> {
         for (int i = 0; i < sensors.length; i++) {
           final sensor = sensors[i];
           final timestamp = DateTime.now().add(Duration(seconds: i * 5));
-          final timeString = timestamp.toIso8601String(); // замість ручного формування
+          final timeString =
+              timestamp.toIso8601String(); // замість ручного формування
 
           final newValues = List<Map<String, dynamic>>.from(sensor.values)
             ..add({
-              'timestamp':timeString,
+              'timestamp': timeString,
               'value': Random().nextDouble() * 50 - 10,
             });
           if (newValues.length > 50) {
@@ -97,10 +98,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _updateSensor(
-      int index,
-      String newTitle,
-      List<Map<String, dynamic>> newValues,
-      ) {
+    int index,
+    String newTitle,
+    List<Map<String, dynamic>> newValues,
+  ) {
     setState(() {
       sensors[index] = SensorData(title: newTitle, values: newValues);
     });
@@ -157,16 +158,16 @@ class SensorData {
   SensorData({required this.title, required this.values});
 
   Map<String, dynamic> toJson() => {
-    'title': title,
-    'values': values,
-  };
+        'title': title,
+        'values': values,
+      };
 
   factory SensorData.fromJson(Map<String, dynamic> json) {
     return SensorData(
       title: json['title'].toString(),
       values: List<Map<String, dynamic>>.from(
         (json['values'] as List<dynamic>).map(
-              (value) => Map<String, dynamic>.from(value as Map<String, dynamic>),
+          (value) => Map<String, dynamic>.from(value as Map<String, dynamic>),
         ),
       ),
     );

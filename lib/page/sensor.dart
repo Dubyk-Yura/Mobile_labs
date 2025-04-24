@@ -102,11 +102,12 @@ class _SensorWidgetState extends State<SensorWidget> {
                 series: <CartesianSeries<Map<String, dynamic>, DateTime>>[
                   LineSeries<Map<String, dynamic>, DateTime>(
                     dataSource: widget.values,
-                    xValueMapper: (data, _) => DateTime.parse(data['timestamp'].toString()),
+                    xValueMapper: (data, _) =>
+                        DateTime.parse(data['timestamp'].toString()),
                     yValueMapper: (data, _) => data['value'] as double,
                   ),
                 ],
-              )
+              ),
             )
           else
             Column(
