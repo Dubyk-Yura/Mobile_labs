@@ -1,5 +1,14 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
+import 'package:mobile_labs/page/sensor.dart';
+import 'package:mobile_labs/storage/storage.dart';
+import 'package:mobile_labs/storage/storage_impl.dart';
 import 'package:mobile_labs/widgets/custom_button.dart';
+
+final Storage localStorage = StorageImpl();
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -9,23 +18,101 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<Item> items = [];
+  List<SensorData> sensors = [];
+  String? userEmail;
+  Timer? _timer;
 
-  void _addItem() {
-    setState(() {
-      items.add(
-        Item(
-          title: 'Sensor ${items.length + 1}',
-          subItems: List.generate(3, (index) => 'Subitem ${index + 1}'),
-        ),
-      );
+  @override
+  void initState() {
+    super.initState();
+    _init();
+    _startAutoUpdate();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _init() async {
+    userEmail = await localStorage.getCurrentUserEmail();
+    await _loadSensors();
+  }
+
+  Future<void> _loadSensors() async {
+    final raw = await localStorage.read(userEmail!);
+    if (raw != null) {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      sensors = decoded
+          .map((item) => SensorData.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    setState(() {});
+  }
+
+  Future<void> _saveSensors() async {
+    final encoded = jsonEncode(sensors.map((e) => e.toJson()).toList());
+    await localStorage.write(userEmail!, encoded);
+  }
+
+  void _startAutoUpdate() {
+    _timer = Timer.periodic(const Duration(seconds: 2), (_) {
+      setState(() {
+        for (int i = 0; i < sensors.length; i++) {
+          final sensor = sensors[i];
+          final timestamp = DateTime.now().add(Duration(seconds: i * 5));
+          final timeString =
+              timestamp.toIso8601String(); // замість ручного формування
+
+          final newValues = List<Map<String, dynamic>>.from(sensor.values)
+            ..add({
+              'timestamp': timeString,
+              'value': Random().nextDouble() * 50 - 10,
+            });
+          if (newValues.length > 50) {
+            newValues.removeAt(0);
+          }
+          sensors[i] = SensorData(title: sensor.title, values: newValues);
+        }
+      });
+      _saveSensors();
     });
   }
 
-  void _removeItem(int index) {
+  void _addSensor() {
     setState(() {
-      items.removeAt(index);
+      final newSensor = SensorData(
+        title: 'Sensor ${sensors.length + 1}',
+        values: List.generate(1, (index) {
+          final random = Random();
+          final value = random.nextDouble() * 50 - 10;
+          final timestamp = DateTime.now().add(Duration(seconds: index * 5));
+          final timeString = timestamp.toIso8601String();
+          return {'timestamp': timeString, 'value': value};
+        }),
+      );
+      sensors.add(newSensor);
     });
+    _saveSensors();
+  }
+
+  void _updateSensor(
+    int index,
+    String newTitle,
+    List<Map<String, dynamic>> newValues,
+  ) {
+    setState(() {
+      sensors[index] = SensorData(title: newTitle, values: newValues);
+    });
+    _saveSensors();
+  }
+
+  void _deleteSensor(int index) {
+    setState(() {
+      sensors.removeAt(index);
+    });
+    _saveSensors();
   }
 
   @override
@@ -35,66 +122,16 @@ class _HomePageState extends State<HomePage> {
         children: [
           Expanded(
             child: ListView.builder(
-              itemCount: items.length,
+              itemCount: sensors.length,
               itemBuilder: (context, index) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0x88939bae),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  margin: const EdgeInsets.symmetric(
-                    vertical: 5,
-                    horizontal: 10,
-                  ),
-                  child: ExpansionTile(
-                    title: Text(
-                      items[index].title,
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _removeItem(index),
-                    ),
-                    children: items[index].subItems.map((subItem) {
-                      return ListTile(
-                        title: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              subItem,
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                            const SizedBox(height: 8),
-                            Container(
-                              width: MediaQuery.of(context).size.width * 0.85,
-                              height: 200,
-                              decoration: BoxDecoration(
-                                color: Colors.grey,
-                                borderRadius: BorderRadius.circular(5),
-                              ),
-                              child: const Center(
-                                child: Text(
-                                  'Sensor Chart',
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontSize: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: Container(
-                                margin: const EdgeInsets.only(top: 10),
-                                width: MediaQuery.of(context).size.width * 0.85,
-                                height: 1,
-                                color: const Color(0x68d9e0fa),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
+                final sensor = sensors[index];
+                return SensorWidget(
+                  sensorName: sensor.title,
+                  values: sensor.values,
+                  onUpdate: (name, values) {
+                    _updateSensor(index, name, values);
+                  },
+                  onDelete: () => _deleteSensor(index),
                 );
               },
             ),
@@ -102,7 +139,7 @@ class _HomePageState extends State<HomePage> {
           Padding(
             padding: const EdgeInsets.all(8),
             child: CustomButton(
-              onPressed: _addItem,
+              onPressed: _addSensor,
               text: 'Add Sensor',
               horizontalPadding: 60,
               verticalPadding: 4,
@@ -114,9 +151,25 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class Item {
+class SensorData {
   final String title;
-  final List<String> subItems;
+  final List<Map<String, dynamic>> values;
 
-  Item({required this.title, required this.subItems});
+  SensorData({required this.title, required this.values});
+
+  Map<String, dynamic> toJson() => {
+        'title': title,
+        'values': values,
+      };
+
+  factory SensorData.fromJson(Map<String, dynamic> json) {
+    return SensorData(
+      title: json['title'].toString(),
+      values: List<Map<String, dynamic>>.from(
+        (json['values'] as List<dynamic>).map(
+          (value) => Map<String, dynamic>.from(value as Map<String, dynamic>),
+        ),
+      ),
+    );
+  }
 }
