@@ -13,5 +13,6 @@ abstract class Storage {
 
   Future<Map<String, dynamic>?> readTopicData(String email, String topic);
 
-  Future<void> writeTopicData(String email, String topic, Map<String, dynamic> jsonData);
+  Future<void> writeTopicData(
+      String email, String topic, Map<String, dynamic> jsonData);
 }

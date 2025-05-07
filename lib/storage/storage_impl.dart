@@ -28,25 +28,8 @@ class StorageImpl implements Storage {
       'password': password,
       'login': login,
     };
-
-
-
     await prefs.setString(_usersKey, jsonEncode(users));
     await prefs.setString(_currentUserKey, email);
-
-    print('--- Поточні користувачі в локальному сховищі ---');
-    for (var entry in users.entries) {
-      final userEmail = entry.key;
-      final userData = entry.value;
-      final sensorKey = 'sensor_data_$userEmail';
-      final sensorData = prefs.getString(sensorKey);
-
-      print('Email: $userEmail');
-      print('Login: ${userData['login']}');
-      print('Password: ${userData['password']}');
-      print('Sensor Data: ${sensorData ?? "Немає даних"}');
-      print('----------------------------------------------');
-    }
   }
 
   @override
@@ -106,19 +89,27 @@ class StorageImpl implements Storage {
     return userData?['login'] as String?;
   }
 
-  Future<void> writeTopicData(String email, String topic, Map<String, dynamic> jsonData) async {
+  @override
+  Future<void> writeTopicData(
+    String email,
+    String topic,
+    Map<String, dynamic> jsonData,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final key = 'sensor_data_${email}_$topic';
     final jsonString = jsonEncode(jsonData);
     await prefs.setString(key, jsonString);
   }
 
-  Future<Map<String, dynamic>?> readTopicData(String email, String topic) async {
+  @override
+  Future<Map<String, dynamic>?> readTopicData(
+    String email,
+    String topic,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final key = 'sensor_data_${email}_$topic';
     final jsonString = prefs.getString(key);
     if (jsonString == null) return null;
     return jsonDecode(jsonString) as Map<String, dynamic>;
   }
-
 }
