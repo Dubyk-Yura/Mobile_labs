@@ -11,7 +11,7 @@ abstract class Storage {
 
   Future<String?> getCurrentUserLogin();
 
-  Future<String?> read(String email);
+  Future<Map<String, dynamic>?> readTopicData(String email, String topic);
 
-  Future<void> write(String email, String data);
+  Future<void> writeTopicData(String email, String topic, Map<String, dynamic> jsonData);
 }
