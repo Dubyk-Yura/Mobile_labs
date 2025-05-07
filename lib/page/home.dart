@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:mobile_labs/page/sensor.dart';
+import 'package:mobile_labs/page/sensor_data.dart';
+import 'package:mobile_labs/services/network_monitor.dart';
 import 'package:mobile_labs/storage/storage.dart';
 import 'package:mobile_labs/storage/storage_impl.dart';
-import 'package:mobile_labs/widgets/custom_button.dart';
+import 'package:mqtt_client/mqtt_client.dart';
+import 'package:mqtt_client/mqtt_server_client.dart';
 
 final Storage localStorage = StorageImpl();
+const _mqttBroker = 'broker.hivemq.com';
+const _mqttPort = 1883;
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,157 +22,194 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  late MqttServerClient _mqttClient;
   List<SensorData> sensors = [];
   String? userEmail;
-  Timer? _timer;
+  bool isOffline = false;
+  Timer? _networkCheckTimer;
+
+  final List<String> topics = [
+    'sensor/lux',
+    'sensor/temperature',
+    'sensor/pressure',
+    'sensor/humidity',
+  ];
 
   @override
   void initState() {
     super.initState();
     _init();
-    _startAutoUpdate();
+    _startNetworkMonitor();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _mqttClient.disconnect();
+    _networkCheckTimer?.cancel();
     super.dispose();
+  }
+
+  void _startNetworkMonitor() {
+    _networkCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      final hasConnection = await NetworkMonitor.checkConnection();
+      if (hasConnection != !isOffline) {
+        setState(() => isOffline = !hasConnection);
+        if (!mounted) return;
+        if (!hasConnection) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are offline')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Back online')),
+          );
+        }
+      }
+    });
   }
 
   Future<void> _init() async {
     userEmail = await localStorage.getCurrentUserEmail();
     await _loadSensors();
+
+    if (sensors.isEmpty) {
+      sensors = [
+        SensorData(title: 'lux', values: []),
+        SensorData(title: 'temperature', values: []),
+        SensorData(title: 'pressure', values: []),
+        SensorData(title: 'humidity', values: []),
+      ];
+      await _saveSensors();
+    }
+
+    setState(() {});
+    await _setupMqtt();
   }
 
   Future<void> _loadSensors() async {
-    final raw = await localStorage.read(userEmail!);
-    if (raw != null) {
-      final decoded = jsonDecode(raw) as List<dynamic>;
-      sensors = decoded
-          .map((item) => SensorData.fromJson(item as Map<String, dynamic>))
-          .toList();
+    sensors.clear();
+    for (final topic in topics) {
+      final data = await localStorage.readTopicData(userEmail!, topic);
+
+      if (data != null && data['data'] != null && data['data'] is List) {
+        final list = (data['data'] as List)
+            .map((item) => SensorData.fromJson(item as Map<String, dynamic>))
+            .toList();
+        sensors.addAll(list);
+      }
     }
-    setState(() {});
   }
 
   Future<void> _saveSensors() async {
-    final encoded = jsonEncode(sensors.map((e) => e.toJson()).toList());
-    await localStorage.write(userEmail!, encoded);
+    final Map<String, List<SensorData>> grouped = {};
+    for (var sensor in sensors) {
+      final topic = 'sensor/${sensor.title}';
+      grouped.putIfAbsent(topic, () => []).add(sensor);
+    }
+
+    for (final entry in grouped.entries) {
+      final topic = entry.key;
+      final jsonData = {
+        'data': entry.value.map((e) => e.toJson()).toList(),
+      };
+      await localStorage.writeTopicData(userEmail!, topic, jsonData);
+    }
   }
 
-  void _startAutoUpdate() {
-    _timer = Timer.periodic(const Duration(seconds: 2), (_) {
-      setState(() {
-        for (int i = 0; i < sensors.length; i++) {
-          final sensor = sensors[i];
-          final timestamp = DateTime.now().add(Duration(seconds: i * 5));
-          final timeString =
-              timestamp.toIso8601String(); // замість ручного формування
+  Future<void> _setupMqtt() async {
+    final clientId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
+    _mqttClient = MqttServerClient(_mqttBroker, clientId);
+    _mqttClient.port = _mqttPort;
+    _mqttClient.logging(on: false);
 
-          final newValues = List<Map<String, dynamic>>.from(sensor.values)
-            ..add({
-              'timestamp': timeString,
-              'value': Random().nextDouble() * 50 - 10,
-            });
-          if (newValues.length > 50) {
-            newValues.removeAt(0);
-          }
-          sensors[i] = SensorData(title: sensor.title, values: newValues);
-        }
-      });
-      _saveSensors();
-    });
-  }
+    try {
+      await _mqttClient.connect();
+    } catch (e) {
+      _mqttClient.disconnect();
+      return;
+    }
 
-  void _addSensor() {
-    setState(() {
-      final newSensor = SensorData(
-        title: 'Sensor ${sensors.length + 1}',
-        values: List.generate(1, (index) {
-          final random = Random();
-          final value = random.nextDouble() * 50 - 10;
-          final timestamp = DateTime.now().add(Duration(seconds: index * 5));
-          final timeString = timestamp.toIso8601String();
-          return {'timestamp': timeString, 'value': value};
-        }),
-      );
-      sensors.add(newSensor);
-    });
-    _saveSensors();
-  }
+    if (_mqttClient.connectionStatus!.state != MqttConnectionState.connected) {
+      _mqttClient.disconnect();
+      return;
+    }
 
-  void _updateSensor(
-    int index,
-    String newTitle,
-    List<Map<String, dynamic>> newValues,
-  ) {
-    setState(() {
-      sensors[index] = SensorData(title: newTitle, values: newValues);
-    });
-    _saveSensors();
-  }
+    for (var sensor in sensors) {
+      final topic = 'sensor/${sensor.title}';
+      _mqttClient.subscribe(topic, MqttQos.atMostOnce);
+    }
 
-  void _deleteSensor(int index) {
-    setState(() {
-      sensors.removeAt(index);
+    _mqttClient.updates
+        ?.listen((List<MqttReceivedMessage<MqttMessage>> events) {
+      for (final event in events) {
+        final rec = event.payload as MqttPublishMessage;
+        final msg =
+            MqttPublishPayload.bytesToStringAsString(rec.payload.message);
+        final topic = event.topic;
+
+        final decoded = jsonDecode(msg);
+        if (decoded is! List) return;
+
+        final List<dynamic> msgJson = decoded;
+        final newValues = msgJson.map((e) {
+          return {
+            'timestamp': e['timestamp'],
+            'value': e['value'],
+          };
+        }).toList();
+
+        setState(() {
+          final idx = sensors.indexWhere((s) => 'sensor/${s.title}' == topic);
+          if (idx == -1) return;
+
+          final updated = List<Map<String, dynamic>>.from(newValues);
+
+          sensors[idx] = SensorData(title: sensors[idx].title, values: updated);
+        });
+
+        _saveSensors();
+      }
     });
-    _saveSensors();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(isOffline ? 'Offline' : 'Online'),
+        centerTitle: true,
+        titleTextStyle: const TextStyle(
+          color: Colors.white,
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
               itemCount: sensors.length,
-              itemBuilder: (context, index) {
-                final sensor = sensors[index];
+              itemBuilder: (context, i) {
+                final sensor = sensors[i];
                 return SensorWidget(
                   sensorName: sensor.title,
                   values: sensor.values,
-                  onUpdate: (name, values) {
-                    _updateSensor(index, name, values);
+                  onUpdate: (_, values) {
+                    setState(
+                      () => sensors[i] =
+                          SensorData(title: sensor.title, values: values),
+                    );
+                    _saveSensors();
                   },
-                  onDelete: () => _deleteSensor(index),
+                  onDelete: () {
+                    setState(() => sensors.removeAt(i));
+                    _saveSensors();
+                  },
                 );
               },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: CustomButton(
-              onPressed: _addSensor,
-              text: 'Add Sensor',
-              horizontalPadding: 60,
-              verticalPadding: 4,
-            ),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-class SensorData {
-  final String title;
-  final List<Map<String, dynamic>> values;
-
-  SensorData({required this.title, required this.values});
-
-  Map<String, dynamic> toJson() => {
-        'title': title,
-        'values': values,
-      };
-
-  factory SensorData.fromJson(Map<String, dynamic> json) {
-    return SensorData(
-      title: json['title'].toString(),
-      values: List<Map<String, dynamic>>.from(
-        (json['values'] as List<dynamic>).map(
-          (value) => Map<String, dynamic>.from(value as Map<String, dynamic>),
-        ),
       ),
     );
   }

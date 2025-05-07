@@ -28,7 +28,6 @@ class StorageImpl implements Storage {
       'password': password,
       'login': login,
     };
-
     await prefs.setString(_usersKey, jsonEncode(users));
     await prefs.setString(_currentUserKey, email);
   }
@@ -91,16 +90,26 @@ class StorageImpl implements Storage {
   }
 
   @override
-  Future<void> write(String email, String data) async {
+  Future<void> writeTopicData(
+    String email,
+    String topic,
+    Map<String, dynamic> jsonData,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    final key = 'sensor_data_$email';
-    await prefs.setString(key, data);
+    final key = 'sensor_data_${email}_$topic';
+    final jsonString = jsonEncode(jsonData);
+    await prefs.setString(key, jsonString);
   }
 
   @override
-  Future<String?> read(String email) async {
+  Future<Map<String, dynamic>?> readTopicData(
+    String email,
+    String topic,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
-    final key = 'sensor_data_$email';
-    return prefs.getString(key);
+    final key = 'sensor_data_${email}_$topic';
+    final jsonString = prefs.getString(key);
+    if (jsonString == null) return null;
+    return jsonDecode(jsonString) as Map<String, dynamic>;
   }
 }
