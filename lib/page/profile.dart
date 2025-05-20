@@ -60,13 +60,46 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 20),
             CustomButton(
               onPressed: () async {
-                await localStorage.logout();
-                if (context.mounted) {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
-                    '/login',
-                        (_) => false,
-                  );
+                final shouldLogout = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    backgroundColor: const Color(0xFF1E1E1E),
+                    title: const Text(
+                      'Quit',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    content: const Text(
+                      'Confirm quit',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: const Text(
+                          'Back',
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text(
+                          'Quit',
+                          style: TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (shouldLogout == true) {
+                  await localStorage.logout();
+                  if (context.mounted) {
+                    Navigator.pushNamedAndRemoveUntil(
+                      context,
+                      '/login',
+                      (_) => false,
+                    );
+                  }
                 }
               },
               text: 'Quit',

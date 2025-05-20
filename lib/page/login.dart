@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_labs/services/network_monitor.dart';
 import 'package:mobile_labs/storage/storage.dart';
 import 'package:mobile_labs/storage/storage_impl.dart';
 import 'package:mobile_labs/widgets/custom_button.dart';
@@ -18,6 +19,48 @@ class LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  bool isOffline = false;
+
+  Future<void> _handleLogin() async {
+    final hasConnection = await NetworkMonitor.checkConnection();
+
+    if (!mounted) return;
+
+    setState(() => isOffline = !hasConnection);
+
+    if (!hasConnection) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection. Trying offline login...'),
+        ),
+      );
+    }
+
+    try {
+      await localStorage.loginUser(
+        emailController.text,
+        passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      if (isOffline) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Offline mode: some features may be unavailable.'),
+          ),
+        );
+      }
+
+      Navigator.pushReplacementNamed(context, '/main');
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login failed: ${e.toString()}')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,27 +100,12 @@ class LoginPageState extends State<LoginPage> {
               const SizedBox(height: 20),
               CustomButton(
                 text: 'Login',
-                onPressed: () async {
+                onPressed: () {
                   if (_formKey.currentState!.validate()) {
-                    try {
-                      await localStorage.loginUser(
-                        emailController.text,
-                        passwordController.text,
-                      );
-                      if (context.mounted) {
-                        Navigator.pushReplacementNamed(context, '/main');
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(e.toString())),
-                        );
-                      }
-                    }
+                    _handleLogin();
                   }
                 },
               ),
-
               const SizedBox(height: 10),
               CustomTextButton(
                 text: 'Register',
