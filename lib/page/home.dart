@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:mobile_labs/page/qr_scanner.dart';
 import 'package:mobile_labs/page/sensor.dart';
 import 'package:mobile_labs/page/sensor_data.dart';
 import 'package:mobile_labs/services/network_monitor.dart';
@@ -9,6 +10,7 @@ import 'package:mobile_labs/storage/storage.dart';
 import 'package:mobile_labs/storage/storage_impl.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:typed_data/typed_data.dart';
 
 final Storage localStorage = StorageImpl();
 const _mqttBroker = 'broker.hivemq.com';
@@ -27,6 +29,8 @@ class _HomePageState extends State<HomePage> {
   String? userEmail;
   bool isOffline = false;
   Timer? _networkCheckTimer;
+  bool isOnline = false;
+  String? key_;
 
   final List<String> topics = [
     'sensor/lux',
@@ -34,6 +38,60 @@ class _HomePageState extends State<HomePage> {
     'sensor/pressure',
     'sensor/humidity',
   ];
+
+  void sendDisconnectRequest() {
+    final buffer = Uint8Buffer();
+    final disconnectPayload = jsonEncode({'key': 'none'});
+
+    buffer.addAll(utf8.encode(disconnectPayload));
+
+    try {
+      _mqttClient.publishMessage(
+        'sensor/disconnect',
+        MqttQos.atLeastOnce,
+        buffer,
+      );
+      setState(() {
+        serverStatus = 'Offline';
+      });
+    } catch (e) {
+      //
+    }
+  }
+
+  void sendConnectRequest(String login, String password) {
+    final buffer = Uint8Buffer();
+
+    final connectPayload =
+        '{"action":"connect_request","login":"$login","password":"$password"}';
+    buffer.addAll(utf8.encode(connectPayload));
+
+    _mqttClient.publishMessage(
+      'sensor/connect',
+      MqttQos.atLeastOnce,
+      buffer,
+    );
+  }
+
+  Future<void> scanQrCode() async {
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute<Map<String, dynamic>?>(
+        builder: (context) => const QrScannerPage(),
+      ),
+    );
+
+    if (result != null) {
+      final login = result['login'];
+      final password = result['password'];
+      if (login != null && password != null) {
+        if (_mqttClient.connectionStatus!.state ==
+            MqttConnectionState.connected) {
+          sendConnectRequest(login.toString(), password.toString());
+        } else {}
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -116,6 +174,8 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  String serverStatus = 'Offline';
+
   Future<void> _setupMqtt() async {
     final clientId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
     _mqttClient = MqttServerClient(_mqttBroker, clientId);
@@ -134,10 +194,14 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    // Subscribe to data topics
     for (var sensor in sensors) {
       final topic = 'sensor/${sensor.title}';
       _mqttClient.subscribe(topic, MqttQos.atMostOnce);
     }
+
+    // Subscribe to server status topic
+    _mqttClient.subscribe('sensor/status', MqttQos.atLeastOnce);
 
     _mqttClient.updates
         ?.listen((List<MqttReceivedMessage<MqttMessage>> events) {
@@ -146,6 +210,20 @@ class _HomePageState extends State<HomePage> {
         final msg =
             MqttPublishPayload.bytesToStringAsString(rec.payload.message);
         final topic = event.topic;
+
+        if (topic == 'sensor/status') {
+          final decoded = jsonDecode(msg);
+          if (decoded['status'] == 'connected') {
+            setState(() {
+              serverStatus = 'Online';
+            });
+          } else {
+            setState(() {
+              serverStatus = 'Offline';
+            });
+          }
+          return;
+        }
 
         final decoded = jsonDecode(msg);
         if (decoded is! List) return;
@@ -162,9 +240,10 @@ class _HomePageState extends State<HomePage> {
           final idx = sensors.indexWhere((s) => 'sensor/${s.title}' == topic);
           if (idx == -1) return;
 
-          final updated = List<Map<String, dynamic>>.from(newValues);
-
-          sensors[idx] = SensorData(title: sensors[idx].title, values: updated);
+          sensors[idx] = SensorData(
+            title: sensors[idx].title,
+            values: List<Map<String, dynamic>>.from(newValues),
+          );
         });
 
         _saveSensors();
@@ -176,13 +255,30 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(isOffline ? 'Offline' : 'Online'),
-        centerTitle: true,
-        titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 36,
-          fontWeight: FontWeight.bold,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'WiFi Status: ${isOffline ? 'Offline' : 'Online'}',
+              style: const TextStyle(fontSize: 18, color: Colors.white),
+            ),
+            Text(
+              'Server Status: $serverStatus',
+              style: const TextStyle(fontSize: 18, color: Colors.white),
+            ),
+          ],
         ),
+        centerTitle: false,
+        actions: [
+          TextButton.icon(
+            onPressed: scanQrCode,
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+            label: const Text(
+              'Connect',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -207,6 +303,20 @@ class _HomePageState extends State<HomePage> {
                   },
                 );
               },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: ElevatedButton.icon(
+              onPressed: sendDisconnectRequest,
+              icon: const Icon(Icons.power_settings_new),
+              label: const Text('Disconnect'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
             ),
           ),
         ],
