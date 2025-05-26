@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_labs/page/qr_scanner.dart';
 import 'package:mobile_labs/page/sensor.dart';
 import 'package:mobile_labs/page/sensor_data.dart';
@@ -16,21 +17,45 @@ final Storage localStorage = StorageImpl();
 const _mqttBroker = 'broker.hivemq.com';
 const _mqttPort = 1883;
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class HomeState {
+  final List<SensorData> sensors;
+  final String? userEmail;
+  final bool isOffline;
+  final bool isOnline;
+  final String serverStatus;
+  final String? key_;
 
-  @override
-  State<HomePage> createState() => _HomePageState();
+  const HomeState({
+    this.sensors = const [],
+    this.userEmail,
+    this.isOffline = false,
+    this.isOnline = false,
+    this.serverStatus = 'Offline',
+    this.key_,
+  });
+
+  HomeState copyWith({
+    List<SensorData>? sensors,
+    String? userEmail,
+    bool? isOffline,
+    bool? isOnline,
+    String? serverStatus,
+    String? key_,
+  }) {
+    return HomeState(
+      sensors: sensors ?? this.sensors,
+      userEmail: userEmail ?? this.userEmail,
+      isOffline: isOffline ?? this.isOffline,
+      isOnline: isOnline ?? this.isOnline,
+      serverStatus: serverStatus ?? this.serverStatus,
+      key_: key_ ?? this.key_,
+    );
+  }
 }
 
-class _HomePageState extends State<HomePage> {
+class HomeCubit extends Cubit<HomeState> {
   late MqttServerClient _mqttClient;
-  List<SensorData> sensors = [];
-  String? userEmail;
-  bool isOffline = false;
   Timer? _networkCheckTimer;
-  bool isOnline = false;
-  String? key_;
 
   final List<String> topics = [
     'sensor/lux',
@@ -38,6 +63,18 @@ class _HomePageState extends State<HomePage> {
     'sensor/pressure',
     'sensor/humidity',
   ];
+
+  HomeCubit() : super(const HomeState()) {
+    _init();
+    _startNetworkMonitor();
+  }
+
+  @override
+  Future<void> close() {
+    _mqttClient.disconnect();
+    _networkCheckTimer?.cancel();
+    return super.close();
+  }
 
   void sendDisconnectRequest() {
     final buffer = Uint8Buffer();
@@ -51,9 +88,7 @@ class _HomePageState extends State<HomePage> {
         MqttQos.atLeastOnce,
         buffer,
       );
-      setState(() {
-        serverStatus = 'Offline';
-      });
+      emit(state.copyWith(serverStatus: 'Offline'));
     } catch (e) {
       //
     }
@@ -73,81 +108,39 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> scanQrCode() async {
-    final result = await Navigator.push<Map<String, dynamic>?>(
-      context,
-      MaterialPageRoute<Map<String, dynamic>?>(
-        builder: (context) => const QrScannerPage(),
-      ),
-    );
-
-    if (result != null) {
-      final login = result['login'];
-      final password = result['password'];
-      if (login != null && password != null) {
-        if (_mqttClient.connectionStatus!.state ==
-            MqttConnectionState.connected) {
-          sendConnectRequest(login.toString(), password.toString());
-        } else {}
-      }
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _init();
-    _startNetworkMonitor();
-  }
-
-  @override
-  void dispose() {
-    _mqttClient.disconnect();
-    _networkCheckTimer?.cancel();
-    super.dispose();
-  }
-
   void _startNetworkMonitor() {
     _networkCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
       final hasConnection = await NetworkMonitor.checkConnection();
-      if (hasConnection != !isOffline) {
-        setState(() => isOffline = !hasConnection);
-        if (!mounted) return;
-        if (!hasConnection) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('You are offline')),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Back online')),
-          );
-        }
+      if (hasConnection != !state.isOffline) {
+        emit(state.copyWith(isOffline: !hasConnection));
       }
     });
   }
 
   Future<void> _init() async {
-    userEmail = await localStorage.getCurrentUserEmail();
+    final userEmail = await localStorage.getCurrentUserEmail();
+    emit(state.copyWith(userEmail: userEmail));
+
     await _loadSensors();
 
-    if (sensors.isEmpty) {
-      sensors = [
+    if (state.sensors.isEmpty) {
+      final defaultSensors = [
         SensorData(title: 'lux', values: []),
         SensorData(title: 'temperature', values: []),
         SensorData(title: 'pressure', values: []),
         SensorData(title: 'humidity', values: []),
       ];
+      emit(state.copyWith(sensors: defaultSensors));
       await _saveSensors();
     }
 
-    setState(() {});
     await _setupMqtt();
   }
 
   Future<void> _loadSensors() async {
-    sensors.clear();
+    final List<SensorData> sensors = [];
     for (final topic in topics) {
-      final data = await localStorage.readTopicData(userEmail!, topic);
+      final data = await localStorage.readTopicData(state.userEmail!, topic);
 
       if (data != null && data['data'] != null && data['data'] is List) {
         final list = (data['data'] as List)
@@ -156,11 +149,12 @@ class _HomePageState extends State<HomePage> {
         sensors.addAll(list);
       }
     }
+    emit(state.copyWith(sensors: sensors));
   }
 
   Future<void> _saveSensors() async {
     final Map<String, List<SensorData>> grouped = {};
-    for (var sensor in sensors) {
+    for (var sensor in state.sensors) {
       final topic = 'sensor/${sensor.title}';
       grouped.putIfAbsent(topic, () => []).add(sensor);
     }
@@ -170,11 +164,9 @@ class _HomePageState extends State<HomePage> {
       final jsonData = {
         'data': entry.value.map((e) => e.toJson()).toList(),
       };
-      await localStorage.writeTopicData(userEmail!, topic, jsonData);
+      await localStorage.writeTopicData(state.userEmail!, topic, jsonData);
     }
   }
-
-  String serverStatus = 'Offline';
 
   Future<void> _setupMqtt() async {
     final clientId = 'flutter_${DateTime.now().millisecondsSinceEpoch}';
@@ -194,13 +186,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // Subscribe to data topics
-    for (var sensor in sensors) {
+    for (var sensor in state.sensors) {
       final topic = 'sensor/${sensor.title}';
       _mqttClient.subscribe(topic, MqttQos.atMostOnce);
     }
 
-    // Subscribe to server status topic
     _mqttClient.subscribe('sensor/status', MqttQos.atLeastOnce);
 
     _mqttClient.updates
@@ -214,13 +204,9 @@ class _HomePageState extends State<HomePage> {
         if (topic == 'sensor/status') {
           final decoded = jsonDecode(msg);
           if (decoded['status'] == 'connected') {
-            setState(() {
-              serverStatus = 'Online';
-            });
+            emit(state.copyWith(serverStatus: 'Online'));
           } else {
-            setState(() {
-              serverStatus = 'Offline';
-            });
+            emit(state.copyWith(serverStatus: 'Offline'));
           }
           return;
         }
@@ -236,91 +222,154 @@ class _HomePageState extends State<HomePage> {
           };
         }).toList();
 
-        setState(() {
-          final idx = sensors.indexWhere((s) => 'sensor/${s.title}' == topic);
-          if (idx == -1) return;
+        final sensors = List<SensorData>.from(state.sensors);
+        final idx = sensors.indexWhere((s) => 'sensor/${s.title}' == topic);
+        if (idx == -1) return;
 
-          sensors[idx] = SensorData(
-            title: sensors[idx].title,
-            values: List<Map<String, dynamic>>.from(newValues),
-          );
-        });
+        sensors[idx] = SensorData(
+          title: sensors[idx].title,
+          values: List<Map<String, dynamic>>.from(newValues),
+        );
 
+        emit(state.copyWith(sensors: sensors));
         _saveSensors();
       }
     });
   }
 
+  void updateSensor(int index, List<Map<String, dynamic>> values) {
+    final sensors = List<SensorData>.from(state.sensors);
+    sensors[index] = SensorData(title: sensors[index].title, values: values);
+    emit(state.copyWith(sensors: sensors));
+    _saveSensors();
+  }
+
+  void deleteSensor(int index) {
+    final sensors = List<SensorData>.from(state.sensors);
+    sensors.removeAt(index);
+    emit(state.copyWith(sensors: sensors));
+    _saveSensors();
+  }
+}
+
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'WiFi Status: ${isOffline ? 'Offline' : 'Online'}',
-              style: const TextStyle(fontSize: 18, color: Colors.white),
-            ),
-            Text(
-              'Server Status: $serverStatus',
-              style: const TextStyle(fontSize: 18, color: Colors.white),
-            ),
-          ],
-        ),
-        centerTitle: false,
-        actions: [
-          TextButton.icon(
-            onPressed: scanQrCode,
-            icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-            label: const Text(
-              'Connect',
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-        ],
+    return BlocProvider(
+      create: (context) => HomeCubit(),
+      child: const HomePageView(),
+    );
+  }
+}
+
+class HomePageView extends StatelessWidget {
+  const HomePageView({super.key});
+
+  Future<void> scanQrCode(BuildContext context) async {
+    final result = await Navigator.push<Map<String, dynamic>?>(
+      context,
+      MaterialPageRoute<Map<String, dynamic>?>(
+        builder: (context) => const QrScannerPage(),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              itemCount: sensors.length,
-              itemBuilder: (context, i) {
-                final sensor = sensors[i];
-                return SensorWidget(
-                  sensorName: sensor.title,
-                  values: sensor.values,
-                  onUpdate: (_, values) {
-                    setState(
-                      () => sensors[i] =
-                          SensorData(title: sensor.title, values: values),
-                    );
-                    _saveSensors();
-                  },
-                  onDelete: () {
-                    setState(() => sensors.removeAt(i));
-                    _saveSensors();
-                  },
-                );
-              },
+    );
+
+    if (result != null && context.mounted) {
+      final login = result['login'];
+      final password = result['password'];
+      if (login != null && password != null) {
+        context
+            .read<HomeCubit>()
+            .sendConnectRequest(login.toString(), password.toString());
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocConsumer<HomeCubit, HomeState>(
+      listener: (context, state) {
+        if (state.isOffline) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You are offline')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Back online')),
+          );
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'WiFi Status: ${state.isOffline ? 'Offline' : 'Online'}',
+                  style: const TextStyle(fontSize: 18, color: Colors.white),
+                ),
+                Text(
+                  'Server Status: ${state.serverStatus}',
+                  style: const TextStyle(fontSize: 18, color: Colors.white),
+                ),
+              ],
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: ElevatedButton.icon(
-              onPressed: sendDisconnectRequest,
-              icon: const Icon(Icons.power_settings_new),
-              label: const Text('Disconnect'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            centerTitle: false,
+            actions: [
+              TextButton.icon(
+                onPressed: () => scanQrCode(context),
+                icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                label: const Text(
+                  'Connect',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+          body: Column(
+            children: [
+              Expanded(
+                child: ListView.builder(
+                  itemCount: state.sensors.length,
+                  itemBuilder: (context, i) {
+                    final sensor = state.sensors[i];
+                    return SensorWidget(
+                      sensorName: sensor.title,
+                      values: sensor.values,
+                      onUpdate: (_, values) {
+                        context.read<HomeCubit>().updateSensor(i, values);
+                      },
+                      onDelete: () {
+                        context.read<HomeCubit>().deleteSensor(i);
+                      },
+                    );
+                  },
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    context.read<HomeCubit>().sendDisconnectRequest();
+                  },
+                  icon: const Icon(Icons.power_settings_new),
+                  label: const Text('Disconnect'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
