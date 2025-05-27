@@ -58,6 +58,30 @@ class SensorCubit extends Cubit<SensorState> {
           ),
         );
 
+  void updateValues(List<Map<String, dynamic>> newValues) {
+    for (var controller in state.xControllers) {
+      controller.dispose();
+    }
+    for (var controller in state.yControllers) {
+      controller.dispose();
+    }
+
+    final newXControllers = newValues
+        .map((e) => TextEditingController(text: e['timestamp'].toString()))
+        .toList();
+    final newYControllers = newValues
+        .map((e) => TextEditingController(text: e['value'].toString()))
+        .toList();
+
+    emit(
+      state.copyWith(
+        values: newValues,
+        xControllers: newXControllers,
+        yControllers: newYControllers,
+      ),
+    );
+  }
+
   void saveChanges() {
     final updatedValues = <Map<String, dynamic>>[];
 
@@ -105,49 +129,83 @@ class SensorWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
+      key: ValueKey(sensorName),
       create: (context) => SensorCubit(
         sensorName: sensorName,
         values: values,
         onUpdate: onUpdate,
       ),
-      child: BlocBuilder<SensorCubit, SensorState>(
-        builder: (context, state) {
-          return Container(
-            margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-            decoration: BoxDecoration(
-              color: const Color(0x88939bae),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: ExpansionTile(
-              title: Text(
-                state.sensorName,
-                style: const TextStyle(color: Colors.white),
-              ),
-              trailing: const Row(
-                mainAxisSize: MainAxisSize.min,
-              ),
-              children: [
-                SizedBox(
-                  height: 200,
-                  child: SfCartesianChart(
-                    primaryXAxis: DateTimeAxis(
-                      dateFormat: DateFormat('HH:mm:ss'),
-                    ),
-                    series: <CartesianSeries<Map<String, dynamic>, DateTime>>[
-                      LineSeries<Map<String, dynamic>, DateTime>(
-                        dataSource: state.values,
-                        xValueMapper: (data, _) =>
-                            DateTime.parse(data['timestamp'].toString()),
-                        yValueMapper: (data, _) => data['value'] as int,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
+      child: _SensorWidgetView(
+        values: values,
       ),
+    );
+  }
+}
+
+class _SensorWidgetView extends StatelessWidget {
+  final List<Map<String, dynamic>> values;
+
+  const _SensorWidgetView({
+    required this.values,
+  });
+
+  bool _listsEqual(List<Map<String, dynamic>> a, List<Map<String, dynamic>> b) {
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i]['timestamp'] != b[i]['timestamp'] ||
+          a[i]['value'] != b[i]['value']) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cubit = context.read<SensorCubit>();
+      if (!_listsEqual(values, cubit.state.values)) {
+        cubit.updateValues(values);
+      }
+    });
+
+    return BlocBuilder<SensorCubit, SensorState>(
+      builder: (context, state) {
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+          decoration: BoxDecoration(
+            color: const Color(0x88939bae),
+            borderRadius: BorderRadius.circular(15),
+          ),
+          child: ExpansionTile(
+            title: Text(
+              state.sensorName,
+              style: const TextStyle(color: Colors.white),
+            ),
+            trailing: const Row(
+              mainAxisSize: MainAxisSize.min,
+            ),
+            children: [
+              SizedBox(
+                height: 200,
+                child: SfCartesianChart(
+                  primaryXAxis: DateTimeAxis(
+                    dateFormat: DateFormat('HH:mm:ss'),
+                  ),
+                  series: <CartesianSeries<Map<String, dynamic>, DateTime>>[
+                    LineSeries<Map<String, dynamic>, DateTime>(
+                      dataSource: state.values,
+                      xValueMapper: (data, _) =>
+                          DateTime.parse(data['timestamp'].toString()),
+                      yValueMapper: (data, _) => data['value'] as int,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
