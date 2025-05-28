@@ -5,32 +5,20 @@ import 'package:mobile_labs/page/profile.dart';
 
 class MainState {
   final int selectedIndex;
-  final List<Widget> pages;
 
-  MainState({
+  const MainState({
     required this.selectedIndex,
-    required this.pages,
   });
 
   MainState copyWith({int? selectedIndex}) {
     return MainState(
       selectedIndex: selectedIndex ?? this.selectedIndex,
-      pages: pages,
     );
   }
 }
 
 class MainCubit extends Cubit<MainState> {
-  MainCubit()
-      : super(
-          MainState(
-            selectedIndex: 0,
-            pages: const [
-              HomePage(),
-              ProfilePage(),
-            ],
-          ),
-        );
+  MainCubit() : super(const MainState(selectedIndex: 0));
 
   void onItemTapped(int index) {
     emit(state.copyWith(selectedIndex: index));
@@ -39,6 +27,17 @@ class MainCubit extends Cubit<MainState> {
 
 class MainPage extends StatelessWidget {
   const MainPage({super.key});
+
+  Widget _getCurrentPage(int index) {
+    switch (index) {
+      case 0:
+        return const HomePage();
+      case 1:
+        return const ProfilePage();
+      default:
+        return const HomePage();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +50,7 @@ class MainPage extends StatelessWidget {
             body: Column(
               children: [
                 Expanded(
-                  child: state.pages[state.selectedIndex],
+                  child: _getCurrentPage(state.selectedIndex),
                 ),
                 Container(
                   width: MediaQuery.of(context).size.width * 0.9,

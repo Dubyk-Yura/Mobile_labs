@@ -9,73 +9,91 @@ import 'package:mobile_labs/widgets/custom_textfield.dart';
 final Storage localStorage = StorageImpl();
 
 class RegisterState {
-  final GlobalKey<FormState> formKey;
-  final TextEditingController emailController;
-  final TextEditingController passwordController;
-  final TextEditingController loginController;
-  final TextEditingController confirmPasswordController;
+  final bool isLoading;
 
-  RegisterState({
-    required this.formKey,
-    required this.emailController,
-    required this.passwordController,
-    required this.loginController,
-    required this.confirmPasswordController,
+  const RegisterState({
+    required this.isLoading,
   });
+
+  RegisterState copyWith({bool? isLoading}) {
+    return RegisterState(
+      isLoading: isLoading ?? this.isLoading,
+    );
+  }
 }
 
 class RegisterCubit extends Cubit<RegisterState> {
-  RegisterCubit()
-      : super(
-          RegisterState(
-            formKey: GlobalKey<FormState>(),
-            emailController: TextEditingController(),
-            passwordController: TextEditingController(),
-            loginController: TextEditingController(),
-            confirmPasswordController: TextEditingController(),
+  RegisterCubit() : super(const RegisterState(isLoading: false));
+
+  Future<void> register(
+    BuildContext context,
+    String email,
+    String password,
+    String login,
+  ) async {
+    emit(state.copyWith(isLoading: true));
+
+    try {
+      await localStorage.registerUser(email, password, login);
+
+      if (context.mounted) {
+        Navigator.pushReplacementNamed(context, '/main');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              e.toString().replaceFirst('Exception: ', ''),
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
         );
-
-  Future<void> register(BuildContext context) async {
-    if (state.formKey.currentState!.validate()) {
-      try {
-        await localStorage.registerUser(
-          state.emailController.text,
-          state.passwordController.text,
-          state.loginController.text,
-        );
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, '/main');
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                e.toString().replaceFirst('Exception: ', ''),
-                style: const TextStyle(color: Colors.white),
-              ),
-              backgroundColor: Colors.red,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
+      }
+    } finally {
+      if (!isClosed) {
+        emit(state.copyWith(isLoading: false));
       }
     }
   }
-
-  @override
-  Future<void> close() {
-    state.emailController.dispose();
-    state.passwordController.dispose();
-    state.loginController.dispose();
-    state.confirmPasswordController.dispose();
-    return super.close();
-  }
 }
 
-class RegisterPage extends StatelessWidget {
+class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
+
+  @override
+  State<RegisterPage> createState() => _RegisterPageState();
+}
+
+class _RegisterPageState extends State<RegisterPage> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _loginController = TextEditingController();
+  final TextEditingController _confirmPasswordController =
+      TextEditingController();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _loginController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  void _register(RegisterCubit cubit) {
+    if (_formKey.currentState!.validate()) {
+      cubit.register(
+        context,
+        _emailController.text,
+        _passwordController.text,
+        _loginController.text,
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +117,7 @@ class RegisterPage extends StatelessWidget {
             body: Padding(
               padding: const EdgeInsets.all(16),
               child: Form(
-                key: state.formKey,
+                key: _formKey,
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(top: 120),
                   child: Column(
@@ -107,14 +125,14 @@ class RegisterPage extends StatelessWidget {
                     children: [
                       CustomTextField(
                         label: 'Email',
-                        controller: state.emailController,
+                        controller: _emailController,
                         validationMessage: 'Please enter email',
                         email: true,
                       ),
                       const SizedBox(height: 10),
                       CustomTextField(
                         label: 'Login',
-                        controller: state.loginController,
+                        controller: _loginController,
                         validationMessage: 'Please enter login',
                         noDigits: true,
                         noDigitsMessage: 'Login cannot contain numbers',
@@ -123,22 +141,25 @@ class RegisterPage extends StatelessWidget {
                       CustomTextField(
                         label: 'Password',
                         obscureText: true,
-                        controller: state.passwordController,
+                        controller: _passwordController,
                       ),
                       const SizedBox(height: 10),
                       CustomTextField(
                         label: 'Confirm Password',
                         obscureText: true,
-                        controller: state.confirmPasswordController,
+                        controller: _confirmPasswordController,
                         validationMessage: 'Please confirm password',
-                        getMatchValue: () => state.passwordController.text,
+                        getMatchValue: () => _passwordController.text,
                         mismatchMessage: 'Passwords do not match',
                       ),
                       const SizedBox(height: 20),
                       CustomButton(
-                        text: 'Register',
-                        onPressed: () =>
-                            context.read<RegisterCubit>().register(context),
+                        text: state.isLoading ? 'Registering...' : 'Register',
+                        onPressed: () {
+                          if (!state.isLoading) {
+                            _register(context.read<RegisterCubit>());
+                          }
+                        },
                       ),
                       const SizedBox(height: 10),
                       CustomTextButton(
