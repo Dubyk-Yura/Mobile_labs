@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:mobile_labs/page/home.dart';
+import 'package:mobile_labs/page/home_page.dart';
 import 'package:mobile_labs/page/profile.dart';
 
 class MainState {

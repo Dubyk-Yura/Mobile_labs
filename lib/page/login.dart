@@ -97,7 +97,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _login(LoginCubit cubit) {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState?.validate() ?? false) {
       cubit.handleLogin(
         context,
         _emailController.text,
