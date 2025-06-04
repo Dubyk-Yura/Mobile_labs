@@ -25,5 +25,4 @@ class SensorData {
   void addValue(Map<String, dynamic> newValue) {
     values.add(newValue);
   }
-
 }

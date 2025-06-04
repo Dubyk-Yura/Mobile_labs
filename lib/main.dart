@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mobile_labs/page/home.dart';
+import 'package:mobile_labs/page/home_page.dart';
 import 'package:mobile_labs/page/login.dart';
 import 'package:mobile_labs/page/main.dart';
 import 'package:mobile_labs/page/profile.dart';
